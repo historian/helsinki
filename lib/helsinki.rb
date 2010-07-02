@@ -10,7 +10,7 @@ module Helsinki
 
   def self.test_run!
     Helsinki::Map.draw do
-      visit '/applications'
+      visit '/'
     end
 
     map   = Helsinki::Map.instance

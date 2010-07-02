@@ -13,7 +13,7 @@ class Helsinki::Cache::FileSystem < Helsinki::Cache::Base
 
     status, headers, body = *response
 
-    cache_path = cache_path(env)
+    cache_path = cache_path(env, headers)
     FileUtils.mkdir_p(File.dirname(cache_path))
     File.open(cache_path, 'w+', 0644) do |file|
       body.each do |chunk|
@@ -21,10 +21,10 @@ class Helsinki::Cache::FileSystem < Helsinki::Cache::Base
       end
     end
 
-    metadata_path = cache_path(env, true)
+    metadata_path = cache_path(env, headers, true)
     FileUtils.mkdir_p(File.dirname(metadata_path))
     File.open(metadata_path, 'w+', 0600) do |file|
-      file.write Marshal.dump(env['helsinki.metadata'])
+      file.write YAML.dump(env['helsinki.metadata'])
     end
 
     true
@@ -36,14 +36,21 @@ class Helsinki::Cache::FileSystem < Helsinki::Cache::Base
 
 private
 
-  def cache_path(env, metadata=false)
+  def cache_path(env, headers, metadata=false)
     url  = env['helsinki.url']
     priv = url.path.starts_with?('/_private')
 
     path = url.path[1..-1]
-    unless File.basename(path).include?('.')
-      extention = Mime::Type.lookup(env['Content-Type']).to_sym
+    if path == '' or path.ends_with?('/')
+      type = headers['Content-Type'].split(';').first
+      extention = Mime::Type.lookup(type).to_sym
       path = File.join(path, "index.#{extention}")
+
+    elsif !File.basename(path).include?('.')
+      type = headers['Content-Type'].split(';').first
+      extention = Mime::Type.lookup(type).to_sym
+      path = "#{path}.#{extention}"
+
     end
 
     if metadata
