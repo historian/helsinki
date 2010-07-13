@@ -1,5 +1,7 @@
 *.gem
 *.log
+*.swp
 doc/
 coverage
+.DS_Store
 .yardoc

@@ -1,7 +1,7 @@
 class Helsinki::Middleware::Cache
 
-  def initialize(app)
-    @app = app
+  def initialize(app, level)
+    @app, @level = app, level
   end
 
   def call(env)
@@ -9,6 +9,14 @@ class Helsinki::Middleware::Cache
   end
 
   def _call(env)
+    if cache = env['helsinki.store'].fetch(@level, env)
+      return [
+        cache['status'].to_s,
+        YAML.load(cache['headers']),
+        [YAML.load(cache['body'])],
+      ]
+    end
+
     status, headers, body = *@app.call(env)
 
     unless env['helsinki.active'] \
@@ -17,10 +25,7 @@ class Helsinki::Middleware::Cache
       return [status, headers, body]
     end
 
-    env['helsinki.metadata'] = {
-      'queries' => env['helsinki.queries']
-    }
-    env['helsinki.cache'].store(env, [status, headers, body])
+    env['helsinki.store'].store(@level, env, [status, headers, body])
 
     true
   end

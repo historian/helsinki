@@ -20,6 +20,8 @@ class Helsinki::Middleware::LinkScanner
     @url   = env['helsinki.url']
     @map   = env['helsinki.map']
     @queue = env['helsinki.queue']
+    @urls  = env['helsinki.info']['urls'] = []
+    @includes = env['helsinki.info']['includes'] = []
     @body  = body
 
     [status, headers, self]
@@ -33,6 +35,20 @@ class Helsinki::Middleware::LinkScanner
           new_url = @map.normalize_url($1, @url)
 
           if @map.include?(new_url)
+            @urls.push(new_url.to_s)
+            @queue.push(new_url)
+          end
+
+        end
+      end
+
+      chunk.scan(/[<][!][-][-]\s*include="((?:\\.|[^\\"])*)"\s*[-][-][>]/) do |m|
+        if m.first
+          new_url = @map.normalize_url($1, @url)
+
+          if @map.include?(new_url)
+            @includes.push(new_url.to_s)
+            @urls.push(new_url.to_s)
             @queue.push(new_url)
           end
 

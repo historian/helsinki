@@ -16,18 +16,27 @@ class Helsinki::Middleware::QueryRecorder
     subscription = notifier.subscribe(/sql\.active_record/) do |*args|
       event = ActiveSupport::Notifications::Event.new(*args)
       sql   = event.payload[:sql]
-      if sql =~ /^\s*SELECT/i
-        sql = sql.squeeze(' ').strip
-        queries << sql
-      end
+      queries << sql if sql =~ /^\s*SELECT/i
     end
 
     response = @app.call(env)
 
-    env['helsinki.queries'] = {}
+    digests = ActiveSupport::OrderedHash.new
     queries.each do |sql|
-      env['helsinki.queries'][sql] = digest(sql)
+      digests[sql] = digest(sql)
     end
+    env['helsinki.info']['queries'] = digests
+
+    tables = Set.new
+    queries.each do |sql|
+      sql =~ /FROM\s+["'`]?([^\s"'`]+)["'`]?/i
+      tables << $1
+
+      sql.scan(/JOIN\s+["'`]?([^\s"'`]+)["'`]?/i) do |m|
+        tables << m[0]
+      end
+    end
+    env['helsinki.info']['tables'] = tables.to_a
 
     response
   ensure

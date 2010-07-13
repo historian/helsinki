@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.required_rubygems_version = ">= 1.3.6"
   s.rubyforge_project         = "helsinki"
 
-  s.files        = Dir.glob("{app,config,lib}/**/*") + %w(LICENSE README.md)
+  s.files        = Dir.glob("{lib}/**/*") + %w(LICENSE README.md)
   s.require_path = 'lib'
 
   s.add_bundler_dependencies

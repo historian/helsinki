@@ -1,3 +1,6 @@
 source :gemcutter
 
-gem 'rails',    '~> 3.0'
+gem 'rack'
+gem 'thor'
+gem 'eventmachine'
+gem 'oklahoma_mixer'

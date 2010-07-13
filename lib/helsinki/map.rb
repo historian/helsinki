@@ -1,11 +1,7 @@
 class Helsinki::Map
 
-  def self.instance
-    @instance ||= self.new
-  end
-
-  def self.draw(&block)
-    Mapper.new(self.instance).instance_eval(&block)
+  def draw(&block)
+    Mapper.new(self).instance_eval(&block)
   end
 
   def initialize
