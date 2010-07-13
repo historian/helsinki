@@ -7,7 +7,8 @@ class Helsinki::Railtie < Rails::Railtie
   config.helsinki.mapping = Helsinki::Map.new
   config.helsinki.store_config = ActiveSupport::OrderedOptions.new
   config.helsinki.store_config.database_path = 'db/helsinki.db'
-  config.helsinki.store_config.public_root   = 'public/cached'
+  config.helsinki.store_config.public_root   = 'public'
+  config.helsinki.store_config.private_root  = 'db/cache'
 
   initializer "helsinki.load_map" do |app|
 
@@ -38,10 +39,10 @@ class Rails::Engine::Configuration
 
   def paths
     @paths ||= begin
-      paths_without_helsinki
-      @paths.config.helsinki "config/helsinki.rb"
-      @paths
-    end
+                 paths_without_helsinki
+                 @paths.config.helsinki "config/helsinki.rb"
+                 @paths
+               end
   end
 
 end

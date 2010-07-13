@@ -6,15 +6,16 @@ class Helsinki::ConfigurationMiddleware
 
   def call(env)
     if  env['helsinki.active'] == true  \
-    and env['REQUEST_METHOD']  == 'GET' \
-    and env['PATH_INFO']       == '/_helsinki/configuration'
+      and env['REQUEST_METHOD']  == 'GET' \
+      and env['PATH_INFO']       == '/_helsinki/configuration'
       config = Rails::Application.config.helsinki
       [200, {}, {
         :map          => config.mapping,
         :store_config => {
-          :database_path => config.store_config.database_path,
-          :public_root   => config.store_config.public_root
-        }
+        :database_path => config.store_config.database_path,
+        :public_root   => config.store_config.public_root,
+        :private_root  => config.store_config.private_root
+      }
       }]
     else
       @app.call(env)

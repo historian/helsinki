@@ -8,7 +8,67 @@ class Helsinki::Visitor
   def fetch_configuration
     url = URI.parse('http://localhost/_helsinki/configuration')
 
-    status, headers, body = *@app.call({
+    status, headers, body = *@app.call(rack_env_for_url(url))
+
+    unless status.to_i == 200
+      raise "Invalid rack application"
+    end
+
+    @map   = body[:map]
+    @queue = Helsinki::Queue.new
+    @store = Helsinki::Store.new(body[:store_config])
+    @store.setup!
+  end
+
+  def visit_all!
+    @map.enqueue(@queue)
+
+    puts "Regenerating all resources:"
+
+    until @queue.empty?
+      visit_page! @queue.pop
+    end
+  end
+
+  def visit_page!(url)
+    page_visitor_stack.call(rack_env_for_url(url))
+  end
+
+  def page_visitor_stack
+    @page_visitor_stack ||= \
+      begin
+        app = lambda do |env|
+          url = env['helsinki.url']
+          visit_fragment!(url)
+        end
+
+        app = Helsinki::Middleware::Assembler.new(app, self)
+        app = Helsinki::Middleware::LinkScanner.new(app, @queue, @map)
+        app = Helsinki::Middleware::PageCache.new(app, @store, :write)
+
+        app
+      end
+  end
+
+  def visit_fragment!(url)
+    fragment_visitor_stack.call(rack_env_for_url(url))
+  end
+
+  def fragment_visitor_stack
+    @fragment_visitor_stack ||= \
+      begin
+        app = @app
+
+        app = Helsinki::Middleware::FragmentCache.new(app, @store, :write)
+        app = Helsinki::Middleware::QueryRecorder.new(app)
+        app = Helsinki::Middleware::FragmentCache.new(app, @store, :read)
+
+        app
+      end
+  end
+
+  def rack_env_for_url(url)
+    {
       'REQUEST_METHOD'    => 'GET',
       'SCRIPT_NAME'       => '',
       'PATH_INFO'         => url.path,
@@ -22,83 +82,10 @@ class Helsinki::Visitor
       'rack.multithread'  => false,
       'rack.multiprocess' => false,
       'rack.run_once'     => false,
-      'helsinki.active'   => true
-    })
-
-    unless status.to_i == 200
-      raise "Invalid rack application"
-    end
-
-    @map   = body[:map]
-    @store_config = body[:store_config]
+      'helsinki.active'   => true,
+      'helsinki.url'      => url
+    }
   end
 
-  def with_store
-    if @store
-      yield
-    else
-      begin
-        @store = Helsinki::Store.new(@store_config)
-        yield
-      ensure
-        @store.close
-      end
-    end
-  end
-
-  def visit_all!
-    @queue = Helsinki::Queue.new
-    @map.enqueue(@queue)
-
-    puts "Regenerating all resources:"
-
-    with_store do
-      until @queue.empty?
-        visit! @queue.pop
-      end
-    end
-  end
-
-  def visit!(url)
-    with_store do
-      puts "- [1] #{url}"
-
-      rack_stack.call({
-        'REQUEST_METHOD'    => 'GET',
-        'SCRIPT_NAME'       => '',
-        'PATH_INFO'         => url.path,
-        'QUERY_STRING'      => url.query,
-        'SERVER_NAME'       => url.host,
-        'SERVER_PORT'       => url.port.to_s,
-        'rack.version'      => Rack::VERSION,
-        'rack.url_scheme'   => url.scheme,
-        'rack.input'        => StringIO.new,
-        'rack.errors'       => $stderr,
-        'rack.multithread'  => false,
-        'rack.multiprocess' => false,
-        'rack.run_once'     => false,
-        'helsinki.active'   => true,
-        'helsinki.url'      => url,
-        'helsinki.map'      => @map,
-        'helsinki.queue'    => @queue,
-        'helsinki.store'    => @store,
-        'helsinki.info'     => {}
-      })
-    end
-  end
-
-  def rack_stack
-    @rack_stack ||= begin
-      app = @app
-
-      app = Helsinki::Middleware::LinkScanner.new(app)
-      app = Helsinki::Middleware::QueryRecorder.new(app)
-      app = Helsinki::Middleware::Cache.new(app, 1)
-      app = Helsinki::Middleware::Assembler.new(app)
-      app = Helsinki::Middleware::Cache.new(app, 2)
-
-      app
-    end
-  end
 
 end

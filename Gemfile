@@ -3,4 +3,7 @@ source :gemcutter
 gem 'rack'
 gem 'thor'
 gem 'eventmachine'
-gem 'oklahoma_mixer'
+
+gem 'dm-core'
+gem 'dm-more'
+gem 'dm-migrations'

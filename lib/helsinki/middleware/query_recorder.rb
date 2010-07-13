@@ -19,35 +19,25 @@ class Helsinki::Middleware::QueryRecorder
       queries << sql if sql =~ /^\s*SELECT/i
     end
 
-    response = @app.call(env)
+    resp = @app.call(env)
+    status, headers, body = *resp
+    return resp unless Helsinki::Body === body
 
-    digests = ActiveSupport::OrderedHash.new
     queries.each do |sql|
-      digests[sql] = digest(sql)
-    end
-    env['helsinki.info']['queries'] = digests
+      query = Helsinki::Store::Query.find(:sql => sql)
 
-    tables = Set.new
-    queries.each do |sql|
-      sql =~ /FROM\s+["'`]?([^\s"'`]+)["'`]?/i
-      tables << $1
-
-      sql.scan(/JOIN\s+["'`]?([^\s"'`]+)["'`]?/i) do |m|
-        tables << m[0]
+      if query
+        body.record.queries << query
+      else
+        rows   = ActiveRecord::Base.connection.select_rows(sql)
+        digest = Digest::SHA1.hexdigest(Marshal.dump(rows))
+        body.record.queries.create :sql => sql, :digest => digest
       end
     end
-    env['helsinki.info']['tables'] = tables.to_a
 
-    response
+    resp
   ensure
     notifier.unsubscribe(subscription)
-  end
-
-  def digest(sql)
-    @cache[sql] ||= begin
-      rows = ActiveRecord::Base.connection.select_rows(sql)
-      Digest::SHA1.hexdigest(Marshal.dump(rows))
-    end
   end
 
 end
