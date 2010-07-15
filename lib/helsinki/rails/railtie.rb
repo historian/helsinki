@@ -31,6 +31,10 @@ class Helsinki::Railtie < Rails::Railtie
     app.middleware.insert_before 'ActionDispatch::Static', 'Helsinki::ConfigurationMiddleware'
   end
 
+  initializer "helsinki.add_assets_path" do |app|
+    app.paths.public = 'app/assets'
+  end
+
 end
 
 class Rails::Engine::Configuration

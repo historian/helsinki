@@ -2,11 +2,21 @@ class Helsinki::Queue
 
   def initialize
     @urls = []
-    @processed_urls = Set.new
+    @skip_list = Set.new
   end
 
   def push(url)
-    unless @urls.include?(url) or @processed_urls.include?(url)
+    if @skip_list.include?(url)
+      return false
+    end
+
+    if Helsinki::Store::Page.first(:url => url)
+      @skip_list << url
+      return false
+    end
+
+    unless @urls.include?(url)
+      @skip_list << url
       @urls << url
     end
 
@@ -14,9 +24,7 @@ class Helsinki::Queue
   end
 
   def pop
-    url = @urls.shift
-    @processed_urls << url if url
-    url
+    @urls.shift
   end
 
   def empty?

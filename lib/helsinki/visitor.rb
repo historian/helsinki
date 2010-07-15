@@ -31,7 +31,10 @@ class Helsinki::Visitor
   end
 
   def visit_page!(url)
+    puts "- #{url}"
     page_visitor_stack.call(rack_env_for_url(url))
+  rescue Helsinki::EntitySkip
+    return :skip
   end
 
   def page_visitor_stack
@@ -39,19 +42,28 @@ class Helsinki::Visitor
       begin
         app = lambda do |env|
           url = env['helsinki.url']
-          visit_fragment!(url)
+          resp = visit_fragment!(url)
+          if resp == :skip
+            raise Helsinki::EntitySkip
+          end
+          resp
         end
 
         app = Helsinki::Middleware::Assembler.new(app, self)
         app = Helsinki::Middleware::LinkScanner.new(app, @queue, @map)
         app = Helsinki::Middleware::PageCache.new(app, @store, :write)
+        app = Helsinki::Middleware::PageLinker.new(app, @store)
+        app = Helsinki::Middleware::PageCache.new(app, @store, :read)
 
         app
       end
   end
 
   def visit_fragment!(url)
+    puts "  + #{url}"
     fragment_visitor_stack.call(rack_env_for_url(url))
+  rescue Helsinki::EntitySkip
+    return :skip
   end
 
   def fragment_visitor_stack
@@ -59,6 +71,7 @@ class Helsinki::Visitor
       begin
         app = @app
 
+        app = Helsinki::Middleware::FilterCachables.new(app)
         app = Helsinki::Middleware::FragmentCache.new(app, @store, :write)
         app = Helsinki::Middleware::QueryRecorder.new(app)
         app = Helsinki::Middleware::FragmentCache.new(app, @store, :read)

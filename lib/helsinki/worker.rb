@@ -18,6 +18,7 @@ class Helsinki::Worker < EM::Connection
         require 'helsinki/store'
         require 'helsinki/body'
         require 'helsinki/middleware'
+        require 'helsinki/exceptions'
 
         EM.connect_unix_domain(sock, Helsinki::Worker, app, options, token)
       end

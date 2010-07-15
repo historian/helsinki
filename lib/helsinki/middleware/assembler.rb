@@ -13,12 +13,13 @@ class Helsinki::Middleware::Assembler
     status, headers, body = *resp
 
     unless Helsinki::Body === body \
-      headers['Content-Type'].starts_with?('text/html')
+      and  headers['Content-Type'].starts_with?('text/html')
       return resp
     end
 
     @base_fragment = body.record
     @base_url      = env['helsinki.url']
+    body.strategy  = :write
     body.processor method(:process)
 
     resp
@@ -43,13 +44,11 @@ class Helsinki::Middleware::Assembler
 
     case status
     when 200...300
-      page.fragments << body.record
-      string = ""
-      body.each { |chunk| string.concat chunk }
-      string
+      page.fragments << body.record if body.record
+      body.read
 
     when 300...400
-      page.fragments << body.record
+      page.fragments << body.record if body.record
       new_url = headers['Location']
       if new_url
         new_url = url.merge(new_url)

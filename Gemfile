@@ -5,5 +5,7 @@ gem 'thor'
 gem 'eventmachine'
 
 gem 'dm-core'
-gem 'dm-more'
+gem 'dm-types'
+gem 'dm-serializer'
 gem 'dm-migrations'
+gem 'dm-sqlite-adapter'

@@ -24,7 +24,7 @@ class Helsinki::Middleware::QueryRecorder
     return resp unless Helsinki::Body === body
 
     queries.each do |sql|
-      query = Helsinki::Store::Query.find(:sql => sql)
+      query = Helsinki::Store::Query.first(:sql => sql)
 
       if query
         body.record.queries << query

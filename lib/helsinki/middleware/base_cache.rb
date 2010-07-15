@@ -20,43 +20,37 @@ class Helsinki::Middleware::BaseCache
     case @access
     when :read
       url    = env['helsinki.url']
-      entity = model_class.find(:url => url)
+      entity = model_class.first(:url => url)
 
       if entity
         headers = entity.headers.dup
-        headers['X-Helsinki-Cached'] = 'true'
         [entity.status, headers, Helsinki::Body.new(entity.path, entity)]
       else
-        resp = @app.call(env)
-        resp[2] = Helsinki::Body.new(resp[2])
-        resp
+        @app.call(env)
       end
 
     when :write
       resp = @app.call(env)
       status, headers, body = *resp
 
-      if headers.delete('X-Helsinki-Cached') \
-        or IGNORE_STATUSES.include?(status)
-        resp[2] = Helsinki::Body.new(resp[2])
-        return resp
-      end
-
-      entity = model_class.new(
+      url    = env['helsinki.url']
+      path   = @store.path_for(cache_prefix, url)
+      entity = model_class.create!(
         :url     => url,
         :status  => status,
-        :headers => headers
+        :headers => headers,
+        :path    => path
       )
 
-      entity.path = @store.write(cache_prefix, url, body, entity)
-      entity.save!
+      unless Helsinki::Body === body
+        body = Helsinki::Body.new(body)
+      end
 
-      body = Helsinki::Body.new(entity.path, entity)
+      body = body.persist(path, entity)
 
-      return [status, headers, body]
+      [status, headers, body]
     end
   end
 
-  IGNORE_STATUSES = (0...200).to_a + (400...600).to_a
 
 end

@@ -12,12 +12,19 @@ class Helsinki::Middleware::LinkScanner
     resp = @app.call(env)
     status, headers, body = *resp
 
-    unless Helsinki::Body === body \
-      headers['Content-Type'].starts_with?('text/html')
-      return resp
+    if Helsinki::Body === body \
+      and (200...300).include?(status) \
+      and headers['Content-Type'].starts_with?('text/html')
+      body.processor method(:process)
     end
 
-    body.processor method(:process)
+    if (300...400).include?(status) and headers['Location']
+      new_url = @map.normalize_url(headers['Location'], @url)
+
+      if @map.include?(new_url)
+        @queue.push(new_url)
+      end
+    end
 
     resp
   end
@@ -31,6 +38,7 @@ class Helsinki::Middleware::LinkScanner
       new_url = @map.normalize_url($1, @url)
 
       next unless @map.include?(new_url)
+
       @queue.push(new_url)
 
       # next unless Helsinki::Body === body
