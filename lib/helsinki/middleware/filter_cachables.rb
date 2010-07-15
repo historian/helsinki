@@ -16,11 +16,6 @@ class Helsinki::Middleware::FilterCachables
       raise Helsinki::EntitySkip
     end
 
-    unless headers['Content-Length'] \
-      or   headers['Transfer-Encoding'] == 'chunked'
-      raise Helsinki::EntitySkip
-    end
-
     if headers['X-Helsinki-Skip'] == 'true'
       raise Helsinki::EntitySkip
     end

@@ -13,12 +13,12 @@ class Helsinki::Middleware::LinkScanner
     status, headers, body = *resp
 
     if Helsinki::Body === body \
-      and (200...300).include?(status) \
+      and (200...300).include?(status.to_i) \
       and headers['Content-Type'].starts_with?('text/html')
       body.processor method(:process)
     end
 
-    if (300...400).include?(status) and headers['Location']
+    if (300...400).include?(status.to_i) and headers['Location']
       new_url = @map.normalize_url(headers['Location'], @url)
 
       if @map.include?(new_url)
