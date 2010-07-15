@@ -1,7 +1,7 @@
 class Helsinki::Middleware::QueryRecorder
 
-  def initialize(app)
-    @app = app
+  def initialize(app, recorder)
+    @app, @recorder = app, recorder
     @cache = {}
   end
 
@@ -10,34 +10,26 @@ class Helsinki::Middleware::QueryRecorder
   end
 
   def _call(env)
-    queries = []
-
-    notifier     = ActiveSupport::Notifications
-    subscription = notifier.subscribe(/sql\.active_record/) do |*args|
-      event = ActiveSupport::Notifications::Event.new(*args)
-      sql   = event.payload[:sql]
-      queries << sql if sql =~ /^\s*SELECT/i
-    end
+    @recorder.start
 
     resp = @app.call(env)
     status, headers, body = *resp
     return resp unless Helsinki::Body === body
 
-    queries.each do |sql|
+    @recorder.queries.each do |sql|
       query = Helsinki::Store::Query.first(:sql => sql)
 
       if query
         body.record.queries << query
       else
-        rows   = ActiveRecord::Base.connection.select_rows(sql)
-        digest = Digest::SHA1.hexdigest(Marshal.dump(rows))
+        digest = @recorder.digest(sql)
         body.record.queries.create :sql => sql, :digest => digest
       end
     end
 
     resp
   ensure
-    notifier.unsubscribe(subscription)
+    @recorder.stop
   end
 
 end

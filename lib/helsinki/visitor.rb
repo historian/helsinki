@@ -17,6 +17,7 @@ class Helsinki::Visitor
     @map   = body[:map]
     @queue = Helsinki::Queue.new
     @store = Helsinki::Store.new(body[:store_config])
+    @recorder = body[:recorder]
     @store.setup!
   end
 
@@ -73,7 +74,7 @@ class Helsinki::Visitor
 
         app = Helsinki::Middleware::FilterCachables.new(app)
         app = Helsinki::Middleware::FragmentCache.new(app, @store, :write)
-        app = Helsinki::Middleware::QueryRecorder.new(app)
+        app = Helsinki::Middleware::QueryRecorder.new(app, @recorder)
         app = Helsinki::Middleware::FragmentCache.new(app, @store, :read)
 
         app

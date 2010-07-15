@@ -4,14 +4,31 @@ require 'eventmachine'
 class Helsinki::CLI < Thor
   namespace :default
 
-  desc "start", "start the helsinki server"
-  method_option :socket, :type => :string,
-    :default => (ENV['HELSINKI_SOCK'] || '/tmp/helsinki.sock')
-  method_option :config, :type => :string,
-    :default => (ENV['HELSINKI_CONF'] || '/etc/helsinki.conf')
+  desc "start", "load an application"
+  method_option :env, :type => :string,
+    :default => (ENV['HELSINKI_ENV'] || 'development')
+  method_option :dir, :type => :string,
+    :default => Dir.pwd
+  method_option :sock, :type => :string,
+    :default => 'tmp/sockets/helsinki.sock'
   method_option :foreground, :type => :boolean,
     :default => false
   def start
+    unless File.exist?(options.dir)
+      shell.say_status('Error', "No such directory: #{options.dir}", :red)
+      exit(1)
+    end
+
+    unless File.file?(File.join(options.dir, 'config.ru'))
+      shell.say_status('Error', "Not a rack app: #{options.dir}", :red)
+      exit(2)
+    end
+
+    if client.ping
+      shell.say_status('Error', "Helsinki is already running for: #{options.dir}", :red)
+      exit(3)
+    end
+
     unless options.foreground
       if RUBY_VERSION < '1.9'
         exit if fork
@@ -24,73 +41,63 @@ class Helsinki::CLI < Thor
 
     trap('INT') { puts ; EM.stop_event_loop }
     $cmd = $0
-    $0 = "Helsinki server: #{options.socket}"
+    $0 = "Helsinki: #{options.dir}"
+    is_worker = true
+
+    Dir.chdir(options.dir)
+
+    File.unlink(options.sock) if File.exist?(options.sock)
+
+    rackup = File.join(options.dir, 'config.ru')
+    user   = Etc.getpwuid(File.stat(rackup).uid).name
+    EM.set_effective_user(user)
+
+    FileUtils.mkdir_p(File.dirname(options.sock))
 
     EM.run do
-      puts "Listening on #{options.socket}"
-      EM.start_unix_domain_server(options.socket, Helsinki::Server, options)
+      puts "Started worker for: #{options.dir}"
+      EM.start_unix_domain_server(options.sock, Helsinki::Worker, options)
     end
 
   ensure
-    puts "bye."
-    File.unlink(options.socket) if File.exist?(options.socket)
+    if is_worker
+      puts "bye."
+      File.unlink(options.sock) if File.exist?(options.sock)
+    end
   end
 
-  desc "stop", "stop the helsinki server"
-  method_option :socket, :type => :string,
-    :default => (ENV['HELSINKI_SOCK'] || '/tmp/helsinki.sock')
+  desc "stop", "stop a helsinki app"
+  method_option :dir, :type => :string,
+    :default => Dir.pwd
+  method_option :sock, :type => :string,
+    :default => 'tmp/sockets/helsinki.sock'
   def stop
-    EM.run do
-      client = EM.connect_unix_domain(options.socket, Helsinki::Client)
-      client.stop_server
-    end
+    client.stop
   end
 
   desc "restart", "restart the helsinki server"
-  method_option :socket, :type => :string,
-    :default => (ENV['HELSINKI_SOCK'] || '/tmp/helsinki.sock')
+  method_option :dir, :type => :string,
+    :default => Dir.pwd
+  method_option :sock, :type => :string,
+    :default => 'tmp/sockets/helsinki.sock'
   def restart
-    EM.run do
-      client = EM.connect_unix_domain(options.socket, Helsinki::Client)
-      client.restart_server
-    end
+    client.restart
   end
 
-  desc "load APP [ENV]", "load a rack application"
-  method_option :socket, :type => :string,
-    :default => (ENV['HELSINKI_SOCK'] || '/tmp/helsinki.sock')
-  def load(app, env=nil)
-    app = File.expand_path(app)
-    env = env || ENV['HELSINKI_ENV'] || 'development'
-
-    EM.run do
-      client = EM.connect_unix_domain(options.socket, Helsinki::Client)
-      client.load(app, env)
-    end
+  desc "build", "start a build"
+  method_option :dir, :type => :string,
+    :default => Dir.pwd
+  method_option :sock, :type => :string,
+    :default => 'tmp/sockets/helsinki.sock'
+  def build
+    client.build
   end
 
-  desc "unload APP", "unload a rack application"
-  method_option :socket, :type => :string,
-    :default => (ENV['HELSINKI_SOCK'] || '/tmp/helsinki.sock')
-  def unload(app, env=nil)
-    app = File.expand_path(app)
+  private
 
-    EM.run do
-      client = EM.connect_unix_domain(options.socket, Helsinki::Client)
-      client.unload(app)
-    end
-  end
-
-  desc "build APP", "lobuildad a rack application"
-  method_option :socket, :type => :string,
-    :default => (ENV['HELSINKI_SOCK'] || '/tmp/helsinki.sock')
-  def build(app, env=nil)
-    app = File.expand_path(app)
-
-    EM.run do
-      client = EM.connect_unix_domain(options.socket, Helsinki::Client)
-      client.build(app)
-    end
+  def client
+    sock_path = File.join(options.dir, options.sock)
+    Helsinki::Client.new(sock_path)
   end
 
 end

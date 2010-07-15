@@ -1,62 +1,60 @@
 class Helsinki::Worker < EM::Connection
 
   require 'digest/sha1'
+  require 'rack'
+  require 'helsinki/map'
+  require 'helsinki/queue'
+  require 'helsinki/visitor'
+  require 'helsinki/store'
+  require 'helsinki/body'
+  require 'helsinki/middleware'
+  require 'helsinki/exceptions'
 
   include EM::P::ObjectProtocol
 
-  def self.spawn(sock, app, options)
-    token = Digest::SHA1.hexdigest([sock, app, rand(1<<100)].join('::'))
-
-    EM.next_tick do
-      EM.fork_reactor do
-        $0 = "Helsinki worker: #{app}"
-
-        require 'rack'
-        require 'helsinki/map'
-        require 'helsinki/queue'
-        require 'helsinki/visitor'
-        require 'helsinki/store'
-        require 'helsinki/body'
-        require 'helsinki/middleware'
-        require 'helsinki/exceptions'
-
-        EM.connect_unix_domain(sock, Helsinki::Worker, app, options, token)
-      end
-    end
-
-    token
-  end
-
-  def initialize(app, options, token)
-    @app, @options, @token = app, options, token
-
-    Dir.chdir(app)
-    rackup = File.join(app, 'config.ru')
-    user   = Etc.getpwuid(File.stat(rackup).uid).name
-    EM.set_effective_user(user)
-
-    ENV['RACK_ENV'] = ENV['RAILS_ENV'] = options['env']
-    @rack_app, _ = *Rack::Builder.parse_file(rackup)
-
-    puts "Started worker for #{@app}"
+  def initialize(options)
+    @options = options
 
     super
   end
 
   def post_init
-    send_object :type => :hello, :token => @token
+    ENV['RACK_ENV'] = ENV['RAILS_ENV'] = @options.env
+    @rack_app, _ = *Rack::Builder.parse_file('config.ru')
   end
 
   def receive_object(obj)
     case obj[:type]
-    when :build
-      Helsinki::Visitor.new(@rack_app).visit_all!
-
+    when :ping    then ping
+    when :restart then restart
+    when :stop    then stop
+    when :build   then build
     end
   end
 
-  def unbind
+  def ping
+    send_object true
+  end
+
+  def restart
+    cmd  = "#{File.expand_path($cmd)} start "
+    cmd += "--dir=#{@options.dir.inspect} "
+    cmd += "--env=#{@options.env.inspect} "
+    cmd += "--sock=#{@options.sock.inspect} "
+    cmd += "--foreground" if @options.foreground
+    at_exit { exec(cmd) }
+    send_object true
     EM.next_tick { EM.stop_event_loop }
+  end
+
+  def stop
+    send_object true
+    EM.next_tick { EM.stop_event_loop }
+  end
+
+  def build
+    send_object true
+    EM.next_tick { Helsinki::Visitor.new(@rack_app).visit_all! }
   end
 
 end

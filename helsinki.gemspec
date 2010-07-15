@@ -21,5 +21,7 @@ Gem::Specification.new do |s|
   s.files        = Dir.glob("{lib}/**/*") + %w(LICENSE README.md)
   s.require_path = 'lib'
 
+  s.executables = ['helsinki']
+
   s.add_bundler_dependencies
 end

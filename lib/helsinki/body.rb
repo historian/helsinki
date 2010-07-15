@@ -57,7 +57,7 @@ class Helsinki::Body
     process!(record)
 
     FileUtils.mkdir_p(File.dirname(path))
-    File.unlink(path) if File.exist?(path)
+    File.unlink(path) if File.exist?(path) or File.symlink?(path)
 
     case @strategy
     when :link
