@@ -26,7 +26,7 @@ class Helsinki::QueryRecorder
 
   def digest(sql)
     Helsinki::QueryRecorder.ignore do
-      rows   = ActiveRecord::Base.connection.select_rows(sql)
+      rows   = ::ActiveRecord::Base.connection.select_rows(sql)
       Digest::SHA1.hexdigest(Marshal.dump(rows))
     end
   end
@@ -38,7 +38,7 @@ module Helsinki::QueryRecorder::ActiveRecord
   def self.inject!
     return if @injected
     @injected = true
-    ActiveRecord::Base.connection.class_eval do
+    ::ActiveRecord::Base.connection.class_eval do
       include Helsinki::QueryRecorder::ActiveRecord
       alias_method_chain :select,      :helsinki
       alias_method_chain :select_rows, :helsinki

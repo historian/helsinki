@@ -1,7 +1,6 @@
 class Helsinki::Worker < EM::Connection
 
   require 'digest/sha1'
-  require 'rack'
   require 'helsinki/map'
   require 'helsinki/queue'
   require 'helsinki/visitor'
@@ -12,15 +11,14 @@ class Helsinki::Worker < EM::Connection
 
   include EM::P::ObjectProtocol
 
-  def initialize(options)
-    @options = options
+  def initialize(options, rack_app)
+    @options  = options
+    @rack_app = rack_app
 
     super
   end
 
   def post_init
-    ENV['RACK_ENV'] = ENV['RAILS_ENV'] = @options.env
-    @rack_app, _ = *Rack::Builder.parse_file('config.ru')
   end
 
   def receive_object(obj)

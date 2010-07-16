@@ -30,25 +30,26 @@ class Helsinki::Map
     url.fragment = nil
 
     url
+  rescue URI::InvalidURIError
+    return nil
   end
 
   def include?(url)
+    return false unless url
+
     url_string = url.to_s
 
-    @allowed_domains.each do |domain|
+    pass = @allowed_domains.any? do |domain|
       case domain
       when Regexp
-        unless url.host =~ domain
-          return false
-        end
+        url.host =~ domain
 
       when Proc
-        if FalseClass === domain.call(url)
-          return false
-        end
+        !(FalseClass === domain.call(url))
 
       end
     end
+    return false unless pass
 
     @ignored_patterns.each do |pattern|
       case pattern
@@ -91,7 +92,7 @@ class Helsinki::Map
         when String
           domain = domain.sub(/^www\./, '')
           domain = %r{^(?:www\.)?#{Regexp.escape(domain)}$}
-          @map.allowed_domains << domain
+            @map.allowed_domains << domain
         when Proc
           @map.allowed_domains << domain
         end

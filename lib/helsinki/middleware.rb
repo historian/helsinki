@@ -8,5 +8,6 @@ module Helsinki::Middleware
   require 'helsinki/middleware/link_scanner'
   require 'helsinki/middleware/assembler'
   require 'helsinki/middleware/page_linker'
+  require 'helsinki/middleware/static_files'
 
 end

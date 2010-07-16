@@ -1,14 +1,12 @@
 require 'helsinki/map'
-require 'helsinki/rails/configuration_middleware'
 
 class Helsinki::Railtie < Rails::Railtie
 
-  config.helsinki         = ActiveSupport::OrderedOptions.new
-  config.helsinki.mapping = Helsinki::Map.new
-  config.helsinki.store_config = ActiveSupport::OrderedOptions.new
-  config.helsinki.store_config.database_path = 'db/helsinki.db'
-  config.helsinki.store_config.public_root   = 'public'
-  config.helsinki.store_config.private_root  = 'db/cache'
+  config.helsinki = ActiveSupport::OrderedOptions.new
+  config.helsinki.recorder      = Helsinki::QueryRecorder.new
+  config.helsinki.database_path = 'db/helsinki.db'
+  config.helsinki.public_root   = 'public'
+  config.helsinki.private_root  = 'db/cache'
 
   initializer "helsinki.load_map" do |app|
 
@@ -27,12 +25,15 @@ class Helsinki::Railtie < Rails::Railtie
 
   end
 
-  initializer "helsinki.register_middleware" do |app|
-    app.middleware.insert_before 'ActionDispatch::Static', 'Helsinki::ConfigurationMiddleware'
-  end
-
   initializer "helsinki.add_assets_path" do |app|
     app.paths.public = 'app/assets'
+  end
+
+  initializer "helsinki.set_config" do
+    Rails.helsinki.recorder      = config.helsinki.recorder
+    Rails.helsinki.database_path = config.helsinki.database_path
+    Rails.helsinki.public_root   = config.helsinki.public_root
+    Rails.helsinki.private_root  = config.helsinki.private_root
   end
 
 end
@@ -51,8 +52,8 @@ class Rails::Engine::Configuration
 
 end
 
-class Rails::Application
-  def helsinki
-    config.helsinki.mapping
+module Rails
+  def self.helsinki
+    Helsinki::Configuration
   end
 end

@@ -2,7 +2,6 @@ module Helsinki
 
   require 'helsinki/version'
 
-  autoload :CLI,    'helsinki/cli'
   autoload :Client, 'helsinki/client'
   autoload :Worker, 'helsinki/worker'
 

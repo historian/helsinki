@@ -1,5 +1,7 @@
 require 'thor'
 require 'eventmachine'
+require 'helsinki/version'
+require 'helsinki/client'
 
 class Helsinki::CLI < Thor
   namespace :default
@@ -19,7 +21,8 @@ class Helsinki::CLI < Thor
       exit(1)
     end
 
-    unless File.file?(File.join(options.dir, 'config.ru'))
+    unless File.file?(File.join(options.dir, 'config.ru')) \
+      or   File.file?(File.join(options.dir, 'config/environment.rb'))
       shell.say_status('Error', "Not a rack app: #{options.dir}", :red)
       exit(2)
     end
@@ -44,19 +47,38 @@ class Helsinki::CLI < Thor
     $0 = "Helsinki: #{options.dir}"
     is_worker = true
 
-    Dir.chdir(options.dir)
+    options.dir  = File.expand_path(options.dir)
+    options.sock = File.expand_path(options.sock, options.dir)
+    rack_up      = File.expand_path('config.ru', options.dir)
+    env_rb       = File.expand_path('config/environment.rb', options.dir)
+    conf_rb      = File.file?(rack_up) ? rack_up : env_rb
 
+    Dir.chdir(options.dir)
     File.unlink(options.sock) if File.exist?(options.sock)
 
-    rackup = File.join(options.dir, 'config.ru')
-    user   = Etc.getpwuid(File.stat(rackup).uid).name
+    user = Etc.getpwuid(File.stat(conf_rb).uid).name
     EM.set_effective_user(user)
 
     FileUtils.mkdir_p(File.dirname(options.sock))
 
+    ENV['RACK_ENV'] = ENV['RAILS_ENV'] = options.env
+
+    if conf_rb == rack_up
+      shell.say_status('Info', 'starting rack', :green)
+      require 'rack'
+      rack_app, _ = *Rack::Builder.parse_file(rack_up)
+    else
+      shell.say_status('Info', 'starting rails', :green)
+      require 'config/environment'
+      rack_app = ActionController::Dispatcher.new
+    end
+
+    # ensure helsinki is loaded
+    require 'helsinki'
+
     EM.run do
-      puts "Started worker for: #{options.dir}"
-      EM.start_unix_domain_server(options.sock, Helsinki::Worker, options)
+      shell.say_status 'Info', "Started worker for: #{options.dir}", :green
+      EM.start_unix_domain_server(options.sock, Helsinki::Worker, options, rack_app)
     end
 
   ensure

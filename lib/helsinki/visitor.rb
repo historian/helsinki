@@ -2,22 +2,17 @@ class Helsinki::Visitor
 
   def initialize(app)
     @app = app
-    fetch_configuration
+    configure
   end
 
-  def fetch_configuration
-    url = URI.parse('http://localhost/_helsinki/configuration')
-
-    status, headers, body = *@app.call(rack_env_for_url(url))
-
-    unless status.to_i == 200
-      raise "Invalid rack application"
-    end
-
-    @map   = body[:map]
+  def configure
+    @map   = Helsinki::Configuration.map
     @queue = Helsinki::Queue.new
-    @store = Helsinki::Store.new(body[:store_config])
-    @recorder = body[:recorder]
+    @store = Helsinki::Store.new(:database_path => Helsinki::Configuration.database_path,
+                                 :private_root  => Helsinki::Configuration.private_root,
+                                 :public_root   => Helsinki::Configuration.public_root)
+    @recorder = Helsinki::Configuration.recorder
+    @static_root = Helsinki::Configuration.static_root
     @store.setup!
   end
 
@@ -33,7 +28,7 @@ class Helsinki::Visitor
 
   def visit_page!(url)
     puts "- #{url}"
-    page_visitor_stack.call(rack_env_for_url(url))
+    resp = page_visitor_stack.call(rack_env_for_url(url))
   rescue Helsinki::EntitySkip
     return :skip
   end
@@ -62,8 +57,11 @@ class Helsinki::Visitor
 
   def visit_fragment!(url)
     puts "  + #{url}"
-    fragment_visitor_stack.call(rack_env_for_url(url))
-  rescue Helsinki::EntitySkip
+    resp = fragment_visitor_stack.call(rack_env_for_url(url))
+    puts "    [#{resp[0]}]"
+    resp
+  rescue Helsinki::EntitySkip => e
+    puts "    [skip: #{e.message}]"
     return :skip
   end
 
@@ -72,6 +70,7 @@ class Helsinki::Visitor
       begin
         app = @app
 
+        app = Helsinki::Middleware::StaticFiles.new(app, @static_root)
         app = Helsinki::Middleware::FilterCachables.new(app)
         app = Helsinki::Middleware::FragmentCache.new(app, @store, :write)
         app = Helsinki::Middleware::QueryRecorder.new(app, @recorder)
@@ -97,7 +96,8 @@ class Helsinki::Visitor
       'rack.multiprocess' => false,
       'rack.run_once'     => false,
       'helsinki.active'   => true,
-      'helsinki.url'      => url
+      'helsinki.url'      => url,
+      'HTTP_HOST'         => "#{url.host}:#{url.port}"
     }
   end
 

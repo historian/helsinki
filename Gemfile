@@ -1,6 +1,5 @@
 source :gemcutter
 
-gem 'rack'
 gem 'thor'
 gem 'eventmachine'
 

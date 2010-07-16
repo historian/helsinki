@@ -49,7 +49,7 @@ class Helsinki::Store
     end
 
     FileUtils.mkdir_p(File.dirname(public_path))
-    File.unlink(public_path) if File.symlink?(public_path)
+    File.unlink(public_path) if File.symlink?(public_path) or File.file?(public_path)
     src = File.join(Dir.pwd, page.path.to_s)
     src = File.readlink(src) if File.symlink?(src)
     FileUtils.ln_s(src, public_path)

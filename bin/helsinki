@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
 
 begin
-  require 'helsinki'
+  require 'helsinki/cli'
 rescue LoadError
   require 'rubygems'
   $:.unshift File.expand_path('../../lib', __FILE__)
-  require 'helsinki'
+  require 'helsinki/cli'
 end
 
 Helsinki::CLI.start
